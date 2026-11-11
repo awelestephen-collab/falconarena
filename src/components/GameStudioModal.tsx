@@ -220,8 +220,11 @@ export function GameStudioModal({
                         }
                         className="px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white font-semibold"
                       >
+                        <option value="rebus_puzzle">
+                          🧩 Rebus Puzzle (Players Type Their Own Answer)
+                        </option>
                         <option value="speed_trivia">
-                          ⚡ Speed Trivia / Rebus Puzzle (1 Right Answer)
+                          ⚡ Speed Trivia (4 Multiple-Choice Options)
                         </option>
                         <option value="majority_wins">
                           🔥 Majority Wins (Most Popular Vote Wins)
@@ -295,35 +298,56 @@ export function GameStudioModal({
                     placeholder="Enter question or prompt..."
                   />
 
-                  <div className="grid sm:grid-cols-2 gap-2.5">
-                    {q.options.map((opt) => (
-                      <div
-                        key={opt.id}
-                        className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2"
-                      >
-                        {q.mode === "speed_trivia" && (
+                  {q.mode === "rebus_puzzle" ? (
+                    <div className="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-1.5">
+                      <label className="block text-[10px] font-bold uppercase text-emerald-400">
+                        Official Rebus Solution (Revealed when countdown timer
+                        reaches 0)
+                      </label>
+                      <input
+                        type="text"
+                        value={q.officialAnswer || ""}
+                        onChange={(e) =>
+                          updateQuestion(idx, {
+                            officialAnswer: e.target.value,
+                            acceptedAnswers: [e.target.value.toLowerCase()],
+                          })
+                        }
+                        className="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-white font-bold"
+                        placeholder="e.g. Forget it"
+                      />
+                    </div>
+                  ) : (
+                    <div className="grid sm:grid-cols-2 gap-2.5">
+                      {q.options.map((opt) => (
+                        <div
+                          key={opt.id}
+                          className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-2"
+                        >
+                          {q.mode === "speed_trivia" && (
+                            <input
+                              type="radio"
+                              name={`correct-${q.id}`}
+                              checked={q.correctOptionId === opt.id}
+                              onChange={() =>
+                                updateQuestion(idx, { correctOptionId: opt.id })
+                              }
+                              className="w-4 h-4 accent-emerald-500"
+                              title="Mark as correct option"
+                            />
+                          )}
                           <input
-                            type="radio"
-                            name={`correct-${q.id}`}
-                            checked={q.correctOptionId === opt.id}
-                            onChange={() =>
-                              updateQuestion(idx, { correctOptionId: opt.id })
+                            type="text"
+                            value={opt.text}
+                            onChange={(e) =>
+                              updateOptionText(idx, opt.id, e.target.value)
                             }
-                            className="w-4 h-4 accent-emerald-500"
-                            title="Mark as correct option"
+                            className="w-full bg-transparent text-xs text-white focus:outline-none"
                           />
-                        )}
-                        <input
-                          type="text"
-                          value={opt.text}
-                          onChange={(e) =>
-                            updateOptionText(idx, opt.id, e.target.value)
-                          }
-                          className="w-full bg-transparent text-xs text-white focus:outline-none"
-                        />
-                      </div>
-                    ))}
-                  </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

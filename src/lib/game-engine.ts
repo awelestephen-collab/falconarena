@@ -21,6 +21,47 @@ export function generatePin(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+export function normalizeRebusAnswer(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/['’`\-_.,!?()/\\:;"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function stripLeadingArticle(normalized: string): string {
+  return normalized.replace(/^(a |an |the )/i, "").trim();
+}
+
+export function isRebusAnswerMatch(
+  submittedText: string,
+  question: GameQuestion
+): boolean {
+  const cleanSubmitted = normalizeRebusAnswer(submittedText);
+  if (!cleanSubmitted) return false;
+  const submittedNoArticle = stripLeadingArticle(cleanSubmitted);
+
+  const candidates = [
+    ...(question.acceptedAnswers || []),
+    ...(question.officialAnswer ? [question.officialAnswer] : []),
+  ];
+
+  for (const candidate of candidates) {
+    const cleanCand = normalizeRebusAnswer(candidate);
+    if (!cleanCand) continue;
+    const candNoArticle = stripLeadingArticle(cleanCand);
+    if (
+      cleanSubmitted === cleanCand ||
+      (submittedNoArticle.length >= 3 && submittedNoArticle === candNoArticle) ||
+      cleanSubmitted.replace(/\s+/g, "") === cleanCand.replace(/\s+/g, "")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function createInitialRoom(params: {
   pin?: string;
   deckId?: string;
@@ -76,7 +117,8 @@ export function calculateSpeedTriviaPoints(params: {
   const clampedMs = Math.min(Math.max(params.responseTimeMs, 0), maxTimeMs);
   const speedRatio = 1 - clampedMs / (2 * maxTimeMs); // Between 0.5 and 1.0
   const basePoints = Math.round(1000 * speedRatio) * params.multiplier;
-  const streakBonus = params.newStreak > 1 ? Math.min((params.newStreak - 1) * 100, 500) : 0;
+  const streakBonus =
+    params.newStreak > 1 ? Math.min((params.newStreak - 1) * 100, 500) : 0;
   return basePoints + streakBonus;
 }
 
@@ -84,7 +126,8 @@ export function submitPlayerAnswer(
   room: GameRoomState,
   playerId: string,
   optionId: number,
-  nowMs: number = Date.now()
+  nowMs: number = Date.now(),
+  textAnswer?: string
 ): GameRoomState {
   const player = room.players[playerId];
   const question = room.questions[room.currentQuestionIndex];
@@ -102,7 +145,18 @@ export function submitPlayerAnswer(
   let newStreak = player.streak;
   let newCorrectCount = player.correctCount;
 
-  if (question.mode === "speed_trivia") {
+  if (question.mode === "rebus_puzzle") {
+    isCorrect = isRebusAnswerMatch(textAnswer || "", question);
+    newStreak = isCorrect ? player.streak + 1 : 0;
+    if (isCorrect) newCorrectCount += 1;
+    pointsAwarded = calculateSpeedTriviaPoints({
+      isCorrect,
+      responseTimeMs,
+      timeLimitSec: question.timeLimitSec,
+      multiplier,
+      newStreak,
+    });
+  } else if (question.mode === "speed_trivia") {
     isCorrect = question.correctOptionId === optionId;
     newStreak = isCorrect ? player.streak + 1 : 0;
     if (isCorrect) newCorrectCount += 1;
@@ -114,13 +168,11 @@ export function submitPlayerAnswer(
       newStreak,
     });
   } else if (question.mode === "icebreaker_poll") {
-    // Everyone who votes in an Icebreaker Poll gets +300 participation points immediately
     isCorrect = true;
     newStreak = player.streak + 1;
     newCorrectCount += 1;
     pointsAwarded = 300 * multiplier;
   } else if (question.mode === "majority_wins") {
-    // Points for Majority Wins are finalized when the round transitions to "reveal"
     isCorrect = false;
     pointsAwarded = 0;
   }
@@ -137,7 +189,8 @@ export function submitPlayerAnswer(
       ...player.answers,
       [question.id]: {
         questionId: question.id,
-        optionId,
+        optionId: question.mode === "rebus_puzzle" ? -1 : optionId,
+        textAnswer: textAnswer?.trim(),
         submittedAt: nowMs,
         responseTimeMs,
         pointsAwarded,
@@ -204,7 +257,7 @@ export function finalizeQuestionReveal(room: GameRoomState): GameRoomState {
       continue;
     }
     const wonMajority = winningOptionIds.has(ans.optionId);
-    const pts = wonMajority ? 750 * multiplier : 150; // +750 for majority win, +150 participation
+    const pts = wonMajority ? 750 * multiplier : 150;
     const newStreak = wonMajority ? player.streak + 1 : 0;
 
     updatedPlayers[id] = {
@@ -253,8 +306,12 @@ export function computeLocationStandings(
 
     const playerCount = locPlayers.length;
     const totalScore = locPlayers.reduce((sum, p) => sum + p.score, 0);
-    const averageScore = playerCount > 0 ? Math.round(totalScore / playerCount) : 0;
-    const totalAnswered = locPlayers.reduce((sum, p) => sum + p.answeredCount, 0);
+    const averageScore =
+      playerCount > 0 ? Math.round(totalScore / playerCount) : 0;
+    const totalAnswered = locPlayers.reduce(
+      (sum, p) => sum + p.answeredCount,
+      0
+    );
     const totalCorrect = locPlayers.reduce((sum, p) => sum + p.correctCount, 0);
     const accuracyPercent =
       totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : 0;
@@ -289,7 +346,8 @@ export function computeSquadStandings(
 
     const playerCount = sqPlayers.length;
     const totalScore = sqPlayers.reduce((sum, p) => sum + p.score, 0);
-    const averageScore = playerCount > 0 ? Math.round(totalScore / playerCount) : 0;
+    const averageScore =
+      playerCount > 0 ? Math.round(totalScore / playerCount) : 0;
 
     return {
       squad,
@@ -307,10 +365,6 @@ export function computeSquadStandings(
   );
 }
 
-/**
- * Populates simulated Falcon staff across the 4 locations & 6 squads so hosts can test
- * a full 200-player multi-location town hall experience at any time.
- */
 export function addSimulatedPlayers(
   room: GameRoomState,
   countToAdd: number = 40
@@ -371,9 +425,6 @@ export function addSimulatedPlayers(
   };
 }
 
-/**
- * Simulates realistic answers from all simulated staff in the room for the current question.
- */
 export function simulateBotAnswersForCurrentQuestion(
   room: GameRoomState
 ): GameRoomState {
@@ -388,7 +439,26 @@ export function simulateBotAnswersForCurrentQuestion(
     if (!player.isSimulated) continue;
     if (player.answers[question.id]) continue;
 
-    // Pick an option (for speed_trivia, 68% chance of picking the right answer)
+    const simulatedOffsetMs = Math.floor(
+      1400 + Math.random() * (maxTimeMs * 0.78)
+    );
+
+    if (question.mode === "rebus_puzzle") {
+      const roll = Math.random();
+      const typedAnswer =
+        roll < 0.65
+          ? question.officialAnswer || "Correct"
+          : "Not sure";
+      nextRoom = submitPlayerAnswer(
+        nextRoom,
+        player.id,
+        -1,
+        room.phaseStartedAt + simulatedOffsetMs,
+        typedAnswer
+      );
+      continue;
+    }
+
     let chosenOptionId = 0;
     if (
       question.mode === "speed_trivia" &&
@@ -405,7 +475,6 @@ export function simulateBotAnswersForCurrentQuestion(
           wrongOpts[Math.floor(Math.random() * wrongOpts.length)]?.id ?? 0;
       }
     } else {
-      // Weighted social preference so Majority Wins has a lively winner
       const weights = [0.36, 0.28, 0.21, 0.15];
       const r = Math.random();
       let acc = 0;
@@ -418,9 +487,6 @@ export function simulateBotAnswersForCurrentQuestion(
       }
     }
 
-    const simulatedOffsetMs = Math.floor(
-      1200 + Math.random() * (maxTimeMs * 0.78)
-    );
     nextRoom = submitPlayerAnswer(
       nextRoom,
       player.id,

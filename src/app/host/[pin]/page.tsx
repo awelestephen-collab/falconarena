@@ -580,6 +580,16 @@ export default function HostStagePage() {
               {totalQuestions}
             </div>
 
+            {currentQuestion.imageUrl && (
+              <div className="max-w-md mx-auto p-4 rounded-3xl bg-white border-4 border-amber-400 shadow-2xl">
+                <img
+                  src={currentQuestion.imageUrl}
+                  alt="Rebus Puzzle"
+                  className="w-full max-h-72 object-contain mx-auto rounded-xl"
+                />
+              </div>
+            )}
+
             {currentQuestion.rebusClue && (
               <div className="max-w-lg mx-auto px-8 py-6 rounded-3xl bg-slate-950/95 border-2 border-amber-400/60 shadow-2xl">
                 <div className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-2">
@@ -628,8 +638,9 @@ export default function HostStagePage() {
                     Round {room.currentQuestionIndex + 1} / {totalQuestions}
                   </span>
                   <span className="px-3 py-1 rounded-full bg-slate-800 text-slate-200 text-xs font-bold">
-                    {currentQuestion.rebusClue
-                      ? "🧩 Rebus Puzzle Challenge"
+                    {currentQuestion.mode === "rebus_puzzle" ||
+                    currentQuestion.rebusClue
+                      ? "🧩 Rebus Puzzle (Type Your Answer)"
                       : currentQuestion.mode === "speed_trivia"
                       ? "⚡ Speed Trivia"
                       : currentQuestion.mode === "majority_wins"
@@ -672,8 +683,18 @@ export default function HostStagePage() {
                   </div>
                 </div>
 
-                {/* Question Prompt + Optional Rebus Visual Box */}
+                {/* Question Prompt + Optional Rebus Image / Visual Box */}
                 <div className="lg:col-span-7 text-center lg:text-left space-y-4">
+                  {currentQuestion.imageUrl && (
+                    <div className="inline-block p-4 rounded-3xl bg-white border-4 border-sky-400 shadow-2xl">
+                      <img
+                        src={currentQuestion.imageUrl}
+                        alt="Rebus Puzzle"
+                        className="w-64 sm:w-80 max-h-72 object-contain mx-auto rounded-xl"
+                      />
+                    </div>
+                  )}
+
                   {currentQuestion.rebusClue && (
                     <div className="inline-block px-7 py-5 rounded-2xl bg-slate-950 border-2 border-amber-400/60 shadow-xl">
                       <div className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1.5">
@@ -689,7 +710,7 @@ export default function HostStagePage() {
                     {currentQuestion.prompt}
                   </h2>
                   {currentQuestion.subtitle && (
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-amber-300 font-semibold">
                       {currentQuestion.subtitle}
                     </p>
                   )}
@@ -753,28 +774,43 @@ export default function HostStagePage() {
               </div>
             </div>
 
-            {/* 4 Geometric Option Cards */}
-            <div className="grid sm:grid-cols-2 gap-4">
-              {currentQuestion.options.map((opt, idx) => {
-                const style = OPTION_STYLES[idx % 4];
-                return (
-                  <div
-                    key={opt.id}
-                    className={`${style.bg} border-2 ${style.border} rounded-3xl p-6 sm:p-7 flex items-center gap-5 shadow-xl`}
-                  >
-                    <div className="w-14 h-14 rounded-2xl bg-black/25 flex items-center justify-center text-white shrink-0">
-                      <AnswerShapeIcon
-                        optionId={opt.id}
-                        className="w-8 h-8"
-                      />
+            {/* Multiple-Choice Cards OR Open Text Input Prompt for Rebus Puzzles */}
+            {currentQuestion.mode === "rebus_puzzle" ? (
+              <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-slate-900 via-[#0b1f3a] to-slate-900 border-2 border-sky-500/40 text-center space-y-2 shadow-xl">
+                <div className="text-xs font-black uppercase tracking-widest text-sky-400">
+                  ✍️ Self-Input Rebus Mode (No Multiple-Choice Options)
+                </div>
+                <div className="text-xl sm:text-2xl font-black text-white">
+                  Type and lock in your answer on your device!
+                </div>
+                <p className="text-xs sm:text-sm text-slate-300">
+                  The official Rebus solution will be revealed on screen as soon
+                  as the countdown timer reaches 0.
+                </p>
+              </div>
+            ) : (
+              <div className="grid sm:grid-cols-2 gap-4">
+                {currentQuestion.options.map((opt, idx) => {
+                  const style = OPTION_STYLES[idx % 4];
+                  return (
+                    <div
+                      key={opt.id}
+                      className={`${style.bg} border-2 ${style.border} rounded-3xl p-6 sm:p-7 flex items-center gap-5 shadow-xl`}
+                    >
+                      <div className="w-14 h-14 rounded-2xl bg-black/25 flex items-center justify-center text-white shrink-0">
+                        <AnswerShapeIcon
+                          optionId={opt.id}
+                          className="w-8 h-8"
+                        />
+                      </div>
+                      <div className="text-xl sm:text-2xl font-black text-white leading-snug">
+                        {opt.text}
+                      </div>
                     </div>
-                    <div className="text-xl sm:text-2xl font-black text-white leading-snug">
-                      {opt.text}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -803,7 +839,7 @@ export default function HostStagePage() {
                     Show 4-Location &amp; Squad Standings
                   </button>
 
-                  {!isLastQuestion ? (
+                  {!isLastQuestion && (
                     <button
                       onClick={() => {
                         soundFX.playTeamTalkChime();
@@ -817,81 +853,176 @@ export default function HostStagePage() {
                       {totalQuestions})
                       <ArrowRight className="w-4 h-4" />
                     </button>
-                  ) : (
-                    <button
-                      onClick={() =>
-                        dispatchRoomAction("set_phase", { status: "podium" })
-                      }
-                      className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-sm shadow-lg shadow-amber-500/25 transition flex items-center gap-1.5"
-                    >
-                      <Award className="w-4 h-4" />
-                      Crown Final Champions Podium!
-                    </button>
                   )}
+
+                  <button
+                    onClick={() =>
+                      dispatchRoomAction("set_phase", { status: "podium" })
+                    }
+                    className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/25 transition flex items-center gap-1.5"
+                  >
+                    <Award className="w-4 h-4" />
+                    End &amp; Crown Podium
+                  </button>
                 </div>
               </div>
 
-              {/* Option Histogram Cards */}
-              <div className="grid sm:grid-cols-2 gap-4">
-                {optionBreakdown.map(({ option, count, percent }, idx) => {
-                  const style = OPTION_STYLES[idx % 4];
-                  const winner = isWinningOption(option.id);
-                  return (
-                    <div
-                      key={option.id}
-                      className={`p-5 rounded-2xl border-2 transition relative overflow-hidden ${
-                        winner
-                          ? "bg-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/15"
-                          : "bg-slate-950/60 border-slate-800 opacity-65"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div
-                            className={`w-10 h-10 rounded-xl ${style.bg} flex items-center justify-center text-white shrink-0`}
-                          >
-                            <AnswerShapeIcon
-                              optionId={option.id}
-                              className="w-5 h-5"
-                            />
-                          </div>
-                          <span className="font-black text-white text-base sm:text-lg">
-                            {option.text}
-                          </span>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-xl font-black text-white">
-                            {count}{" "}
-                            <span className="text-xs text-slate-400">
-                              ({percent}%)
-                            </span>
-                          </div>
-                          {winner && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-400">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              {currentQuestion.mode === "speed_trivia"
-                                ? "Correct Answer"
-                                : currentQuestion.mode === "majority_wins"
-                                ? "Majority Winner!"
-                                : "Pulse Choice"}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="w-full h-2.5 rounded-full bg-slate-900 overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${Math.max(4, percent)}%`,
-                            backgroundColor: style.hex,
-                          }}
+              {/* REBUS PUZZLE OFFICIAL ANSWER REVEAL OR MULTIPLE-CHOICE HISTOGRAM */}
+              {currentQuestion.mode === "rebus_puzzle" ? (
+                <div className="space-y-6">
+                  <div className="grid md:grid-cols-12 gap-6 items-center bg-slate-950 border-2 border-emerald-400/70 rounded-3xl p-6 sm:p-8 shadow-2xl">
+                    {currentQuestion.imageUrl && (
+                      <div className="md:col-span-4 p-3 rounded-2xl bg-white border-2 border-slate-200">
+                        <img
+                          src={currentQuestion.imageUrl}
+                          alt="Rebus Solution"
+                          className="w-full max-h-56 object-contain mx-auto rounded-lg"
                         />
                       </div>
+                    )}
+                    <div
+                      className={`${
+                        currentQuestion.imageUrl
+                          ? "md:col-span-8"
+                          : "md:col-span-12"
+                      } space-y-3 text-center md:text-left`}
+                    >
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-black uppercase tracking-widest">
+                        <CheckCircle2 className="w-4 h-4" />
+                        Official Rebus Answer Revealed
+                      </span>
+                      <div className="text-3xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-300 via-white to-amber-300">
+                        {currentQuestion.officialAnswer}
+                      </div>
+                      {currentQuestion.funFact && (
+                        <p className="text-sm text-slate-300">
+                          {currentQuestion.funFact}
+                        </p>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+
+                  {/* Submitted Typed Answers Feed */}
+                  <div className="space-y-2.5">
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-400">
+                      Submitted Player Answers ({answeredCount})
+                    </h3>
+                    {answeredCount === 0 ? (
+                      <div className="text-xs text-slate-500 py-4">
+                        No typed answers were submitted before the timer ran
+                        down.
+                      </div>
+                    ) : (
+                      <div className="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 max-h-60 overflow-y-auto pr-1">
+                        {playersList
+                          .filter(
+                            (p) => p.answers[currentQuestion.id] !== undefined
+                          )
+                          .map((p) => {
+                            const ans = p.answers[currentQuestion.id];
+                            const loc = room.locations.find(
+                              (l) => l.id === p.locationId
+                            );
+                            return (
+                              <div
+                                key={p.id}
+                                className={`p-3 rounded-xl border flex items-center justify-between gap-2 ${
+                                  ans.isCorrect
+                                    ? "bg-emerald-950/40 border-emerald-500/50"
+                                    : "bg-slate-950 border-slate-800"
+                                }`}
+                              >
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold text-white truncate">
+                                    {p.avatar} {p.name}{" "}
+                                    <span className="text-[10px] text-slate-400">
+                                      ({loc?.shortName})
+                                    </span>
+                                  </div>
+                                  <div className="text-xs font-extrabold text-sky-300 truncate mt-0.5">
+                                    &ldquo;{ans.textAnswer || "—"}&rdquo;
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  {ans.isCorrect ? (
+                                    <span className="text-xs font-black text-emerald-400">
+                                      +{ans.pointsAwarded}
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-rose-400">
+                                      ✗
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  {optionBreakdown.map(({ option, count, percent }, idx) => {
+                    const style = OPTION_STYLES[idx % 4];
+                    const winner = isWinningOption(option.id);
+                    return (
+                      <div
+                        key={option.id}
+                        className={`p-5 rounded-2xl border-2 transition relative overflow-hidden ${
+                          winner
+                            ? "bg-slate-950 border-emerald-400 shadow-lg shadow-emerald-500/15"
+                            : "bg-slate-950/60 border-slate-800 opacity-65"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className={`w-10 h-10 rounded-xl ${style.bg} flex items-center justify-center text-white shrink-0`}
+                            >
+                              <AnswerShapeIcon
+                                optionId={option.id}
+                                className="w-5 h-5"
+                              />
+                            </div>
+                            <span className="font-black text-white text-base sm:text-lg">
+                              {option.text}
+                            </span>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-xl font-black text-white">
+                              {count}{" "}
+                              <span className="text-xs text-slate-400">
+                                ({percent}%)
+                              </span>
+                            </div>
+                            {winner && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-400">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                {currentQuestion.mode === "speed_trivia"
+                                  ? "Correct Answer"
+                                  : currentQuestion.mode === "majority_wins"
+                                  ? "Majority Winner!"
+                                  : "Pulse Choice"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="w-full h-2.5 rounded-full bg-slate-900 overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.max(4, percent)}%`,
+                              backgroundColor: style.hex,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Fun Fact / Insight */}
               {currentQuestion.funFact && (

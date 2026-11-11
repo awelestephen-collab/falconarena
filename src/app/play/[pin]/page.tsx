@@ -40,6 +40,8 @@ export default function PlayerControllerPage() {
   const [avatar, setAvatar] = useState<string>(PLAYER_AVATARS[0]);
   const [joining, setJoining] = useState<boolean>(false);
   const [submittingOption, setSubmittingOption] = useState<number | null>(null);
+  const [typedRebusAnswer, setTypedRebusAnswer] = useState<string>("");
+  const [submittingText, setSubmittingText] = useState<boolean>(false);
   const [remainingSec, setRemainingSec] = useState<number>(0);
 
   // Restore saved player session for this room PIN
@@ -92,6 +94,8 @@ export default function PlayerControllerPage() {
   // Reset local submitting state when question changes
   useEffect(() => {
     setSubmittingOption(null);
+    setSubmittingText(false);
+    setTypedRebusAnswer("");
   }, [currentQuestion?.id, room?.status]);
 
   const handleJoinGame = async (e: React.FormEvent) => {
@@ -166,6 +170,26 @@ export default function PlayerControllerPage() {
     await dispatchRoomAction("submit_answer", {
       playerId: activePlayer.id,
       optionId,
+    });
+  };
+
+  const handleSubmitRebusText = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!room || !activePlayer || !currentQuestion) return;
+    if (room.status !== "question") return;
+    if (
+      !typedRebusAnswer.trim() ||
+      activePlayer.answers[currentQuestion.id] ||
+      submittingText
+    ) {
+      return;
+    }
+    setSubmittingText(true);
+    soundFX.playLockIn();
+    await dispatchRoomAction("submit_answer", {
+      playerId: activePlayer.id,
+      optionId: -1,
+      textAnswer: typedRebusAnswer.trim(),
     });
   };
 
@@ -502,6 +526,15 @@ export default function PlayerControllerPage() {
               <MessageSquare className="w-3.5 h-3.5" />
               Team Talk Huddle ({remainingSec}s)
             </div>
+            {currentQuestion.imageUrl && (
+              <div className="p-3 rounded-2xl bg-white border-2 border-amber-400 max-w-xs mx-auto">
+                <img
+                  src={currentQuestion.imageUrl}
+                  alt="Rebus Puzzle"
+                  className="w-full max-h-56 object-contain mx-auto rounded-lg"
+                />
+              </div>
+            )}
             {currentQuestion.rebusClue && (
               <div className="px-5 py-4 rounded-2xl bg-slate-950 border-2 border-amber-400/60">
                 <div className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1">
@@ -544,6 +577,15 @@ export default function PlayerControllerPage() {
                   ⏱️ {remainingSec}s
                 </span>
               </div>
+              {currentQuestion.imageUrl && (
+                <div className="p-3 rounded-2xl bg-white border-2 border-sky-400 max-w-xs mx-auto">
+                  <img
+                    src={currentQuestion.imageUrl}
+                    alt="Rebus Puzzle"
+                    className="w-full max-h-56 object-contain mx-auto rounded-lg"
+                  />
+                </div>
+              )}
               {room.personalModeEnabled && currentQuestion.rebusClue && (
                 <div className="px-4 py-3 rounded-xl bg-slate-950 border border-amber-400/50 text-center">
                   <div className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1">
@@ -559,6 +601,11 @@ export default function PlayerControllerPage() {
                   {currentQuestion.prompt}
                 </h2>
               )}
+              {currentQuestion.subtitle && (
+                <p className="text-xs text-amber-300 font-semibold">
+                  {currentQuestion.subtitle}
+                </p>
+              )}
             </div>
 
             {/* If already locked in, show locked confirmation */}
@@ -568,12 +615,42 @@ export default function PlayerControllerPage() {
                 <div className="text-xl font-black text-white">
                   Answer Locked In!
                 </div>
+                {myAnswerForCurrent.textAnswer && (
+                  <div className="inline-block px-4 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-sm font-bold text-sky-300">
+                    Your Answer: &ldquo;{myAnswerForCurrent.textAnswer}&rdquo;
+                  </div>
+                )}
                 <p className="text-xs text-slate-400">
                   Submitted in{" "}
                   {(myAnswerForCurrent.responseTimeMs / 1000).toFixed(1)}s.
-                  Waiting for reveal across all 4 Falcon locations...
+                  The official answer will be revealed when the timer reaches 0!
                 </p>
               </div>
+            ) : currentQuestion.mode === "rebus_puzzle" ? (
+              <form
+                onSubmit={handleSubmitRebusText}
+                className="bg-slate-900 border-2 border-sky-500/40 rounded-3xl p-5 space-y-4 shadow-xl"
+              >
+                <label className="block text-xs font-extrabold uppercase tracking-wider text-sky-400">
+                  ✍️ Type Your Rebus Answer Below
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={typedRebusAnswer}
+                  onChange={(e) => setTypedRebusAnswer(e.target.value)}
+                  placeholder="Type the hidden word or phrase..."
+                  className="w-full px-4 py-3.5 rounded-2xl bg-slate-950 border border-slate-700 text-white font-bold text-base focus:outline-none focus:border-sky-400"
+                />
+                <button
+                  type="submit"
+                  disabled={submittingText || !typedRebusAnswer.trim()}
+                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-sky-400 to-blue-600 hover:from-sky-300 hover:to-blue-500 disabled:opacity-40 text-slate-950 font-black text-base shadow-lg shadow-sky-500/20 transition"
+                >
+                  {submittingText ? "Locking In..." : "Lock In Rebus Answer →"}
+                </button>
+              </form>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 {currentQuestion.options.map((opt, idx) => {
@@ -607,6 +684,18 @@ export default function PlayerControllerPage() {
         {/* 4. REVEAL STATE */}
         {room.status === "reveal" && currentQuestion && (
           <div className="space-y-4">
+            {currentQuestion.mode === "rebus_puzzle" &&
+              currentQuestion.officialAnswer && (
+                <div className="p-5 rounded-3xl bg-slate-900 border-2 border-emerald-400/60 text-center space-y-2 shadow-xl">
+                  <div className="text-[11px] font-black uppercase tracking-widest text-emerald-400">
+                    Official Rebus Solution
+                  </div>
+                  <div className="text-2xl sm:text-3xl font-black text-white">
+                    {currentQuestion.officialAnswer}
+                  </div>
+                </div>
+              )}
+
             {myAnswerForCurrent ? (
               <div
                 className={`rounded-3xl p-6 text-center space-y-3 border-2 shadow-2xl ${
@@ -632,6 +721,15 @@ export default function PlayerControllerPage() {
                     ? "Close! Another Option Won the Majority"
                     : "Not Quite This Time!"}
                 </h2>
+
+                {myAnswerForCurrent.textAnswer && (
+                  <div className="text-xs text-slate-300">
+                    You typed:{" "}
+                    <strong className="text-white">
+                      &ldquo;{myAnswerForCurrent.textAnswer}&rdquo;
+                    </strong>
+                  </div>
+                )}
 
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-950/90 border border-slate-800 text-lg font-black text-amber-300">
                   +{myAnswerForCurrent.pointsAwarded.toLocaleString()} pts

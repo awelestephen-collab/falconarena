@@ -1,4 +1,8 @@
-export type QuestionMode = "speed_trivia" | "majority_wins" | "icebreaker_poll";
+export type QuestionMode =
+  | "speed_trivia"
+  | "majority_wins"
+  | "icebreaker_poll"
+  | "rebus_puzzle";
 
 export interface FalconLocation {
   id: string;
@@ -29,10 +33,16 @@ export interface GameQuestion {
   category: string;
   prompt: string;
   subtitle?: string;
-  /** Optional visual Rebus puzzle box text / layout displayed as a stylized riddle card */
+  /** Optional visual Rebus puzzle text clue */
   rebusClue?: string;
+  /** Downloaded/cropped Rebus puzzle image (data URI or static path) */
+  imageUrl?: string;
+  /** Official answer displayed after the countdown timer finishes */
+  officialAnswer?: string;
+  /** Accepted answer variations for automatic scoring of player-typed answers */
+  acceptedAnswers?: string[];
   options: QuestionOption[];
-  /** For speed_trivia, index of the correct option (0..3). Null/undefined for majority_wins or icebreaker_poll */
+  /** For speed_trivia, index of the correct option (0..3). Null/undefined for majority_wins, icebreaker_poll, or rebus_puzzle */
   correctOptionId?: number | null;
   timeLimitSec: number;
   teamTalkSec?: number;
@@ -52,6 +62,7 @@ export interface GameDeck {
 export interface PlayerAnswer {
   questionId: string;
   optionId: number;
+  textAnswer?: string;
   submittedAt: number;
   responseTimeMs: number;
   pointsAwarded: number;

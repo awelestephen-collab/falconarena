@@ -36,7 +36,9 @@ function normalizeLocations(room: GameRoomState): GameRoomState {
 
   if (
     nextRoom.deckId === "falcon-friday-chill" &&
-    nextRoom.title.toLowerCase().includes("crowdparty")
+    (nextRoom.title.toLowerCase().includes("crowdparty") ||
+      nextRoom.questions.length < 50 ||
+      nextRoom.questions[0]?.mode !== "rebus_puzzle")
   ) {
     const updatedDeck = PREBUILT_GAME_DECKS.find(
       (d) => d.id === "falcon-friday-chill"
@@ -186,11 +188,18 @@ export async function POST(
     }
 
     case "submit_answer": {
-      const { playerId, optionId } = body as {
+      const { playerId, optionId, textAnswer } = body as {
         playerId: string;
-        optionId: number;
+        optionId?: number;
+        textAnswer?: string;
       };
-      room = submitPlayerAnswer(room, playerId, Number(optionId));
+      room = submitPlayerAnswer(
+        room,
+        playerId,
+        Number(optionId ?? -1),
+        Date.now(),
+        textAnswer
+      );
       break;
     }
 
